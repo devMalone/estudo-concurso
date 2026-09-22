@@ -1,0 +1,14 @@
+import{allEvents,putEvents}from './data.js';
+const cfg=window.ESTUDO_CONFIG||{};
+export const configured=Boolean(cfg.supabaseUrl&&cfg.supabaseKey);
+let auth;try{auth=JSON.parse(localStorage.getItem('estudo-auth')||'null')}catch{auth=null}
+export const owner=()=>auth?.user?.id||'local';
+export const email=()=>auth?.user?.email||'';
+function saveAuth(data){localStorage.setItem('estudo-auth',JSON.stringify(data));auth=data}
+async function request(path,options={},token){const response=await fetch(cfg.supabaseUrl.replace(/\/$/,'')+path,{...options,headers:{apikey:cfg.supabaseKey,'Content-Type':'application/json',...(token?{Authorization:'Bearer '+token}:{}),...options.headers},signal:AbortSignal.timeout(20000)});const data=await response.json().catch(()=>null);if(!response.ok)throw Error(data?.msg||data?.message||data?.error_description||'Falha de comunicação com a nuvem.');return data}
+export async function login(email,password,signup=false){if(!configured)throw Error('Preencha config.js antes de conectar.');const data=await request(signup?'/auth/v1/signup':'/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});if(!data.access_token)return false;saveAuth({...data,expires_at:Date.now()+data.expires_in*1000});return true}
+export async function logout(){if(auth?.access_token&&navigator.onLine){try{await request('/auth/v1/logout',{method:'POST'},auth.access_token)}catch{}}saveAuth(null)}
+async function token(){if(!auth)throw Error('Entre na sua conta.');if(Date.now()>auth.expires_at-60000){const d=await request('/auth/v1/token?grant_type=refresh_token',{method:'POST',body:JSON.stringify({refresh_token:auth.refresh_token})});saveAuth({...d,expires_at:Date.now()+d.expires_in*1000})}return auth.access_token}
+let running=false;
+export async function sync(){if(running||!configured||owner()==='local')return;running=true;try{const user=owner(),jwt=await token();const pending=(await allEvents()).filter(e=>e.owner===user&&!e.synced);for(let i=0;i<pending.length;i+=100){const batch=pending.slice(i,i+100);await request('/rest/v1/study_events?on_conflict=user_id,id',{method:'POST',headers:{Prefer:'resolution=ignore-duplicates,return=minimal'},body:JSON.stringify(batch.map(e=>({user_id:user,id:e.id,kind:e.kind,entity:e.entity,payload:e.payload,at:e.at})))},jwt);await putEvents(batch.map(e=>({...e,synced:true})))}let offset=0;while(true){const rows=await request(`/rest/v1/study_events?select=*&user_id=eq.${user}&order=id.asc&offset=${offset}&limit=500`,{},jwt);await putEvents(rows.map(e=>({id:e.id,owner:user,kind:e.kind,entity:e.entity,payload:e.payload,at:e.at,synced:true})));if(rows.length<500)break;offset+=rows.length}}finally{running=false}}
+export async function adoptLocal(){const user=owner();if(user==='local')return;const rows=(await allEvents()).filter(e=>e.owner==='local');await putEvents(rows.map(e=>({...e,owner:user,synced:false})))}
