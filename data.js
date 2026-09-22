@@ -7,9 +7,10 @@ function validate(e){
  if(!uuid.test(e.id)||!uuid.test(e.entity)||!['exam','subject','topic','session','review','plan','mock'].includes(e.kind)||!Number.isFinite(Date.parse(e.at)))throw Error('Identificação de registro inválida.');
  const p=e.payload;if(!p||typeof p!=='object'||Array.isArray(p)||JSON.stringify(p).length>65536)throw Error('Conteúdo de registro inválido.');
  for(const [k,v]of Object.entries(p)){
-  if(['minutes','questions','right','weight','day','score','max'].includes(k)){if(typeof v!=='number'||!Number.isFinite(v)||v<0||v>10000000)throw Error('Valor numérico inválido.');}
+  if(['minutes','questions','right','weight','day','score','max','weeklyMinutes'].includes(k)){if(typeof v!=='number'||!Number.isFinite(v)||v<0||v>10000000)throw Error('Valor numérico inválido.');}
   else if(['done','deleted'].includes(k)){if(typeof v!=='boolean')throw Error('Estado inválido.');}
   else if(k==='parts'){if(!Array.isArray(v)||v.some(x=>typeof x.name!=='string'||['total','right','weight'].some(n=>typeof x[n]!=='number'||!Number.isFinite(x[n])||x[n]<0)))throw Error('Simulado inválido.');}
+  else if(k==='parent'){if(v!==''&&!uuid.test(v))throw Error('Tópico pai inválido.');}
   else if(['exam','topic','subject'].includes(k)){if(!uuid.test(v))throw Error('Referência inválida.');}
   else if(['name','date','intervals','status','url','notes','type','time'].includes(k)){if(typeof v!=='string')throw Error('Texto inválido.');if(k==='intervals'&&!/^\d+(,\d+)*$/.test(v))throw Error('Intervalos inválidos.');if(k==='date'&&v&&!/^\d{4}-\d{2}-\d{2}$/.test(v))throw Error('Data inválida.');if(k==='time'&&!/^\d{2}:\d{2}$/.test(v))throw Error('Horário inválido.');}
   else throw Error('Campo de registro desconhecido.');

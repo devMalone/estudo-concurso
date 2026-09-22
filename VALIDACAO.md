@@ -1,15 +1,14 @@
-# Validação da entrega
+# Validação
 
-## Executado neste ambiente
+Executado:
 
-- Verificação de sintaxe de app.js, data.js, cloud.js e sw.js com Node.
-- Testes automáticos em tests.mjs: projeção dos eventos, ordenação, exclusão lógica, passagem de ano nas revisões, rejeição de valores inseguros, login simulado, transferência de registros locais para conta, envio sem duplicação, fila offline, recebimento de outro aparelho e falha de armazenamento.
-- Os testes de persistência usam uma implementação simulada de IndexedDB; não substituem testes reais no navegador.
+- Sintaxe dos módulos JavaScript com Node.
+- Testes de árvore: itens finais, contagem sem duplicidade, caminho de tópico e distribuição do tempo semanal.
+- Testes de dados: eventos, validação de tópico pai e projeção do estado.
+- Conferência estática da nova configuração de nuvem e do SQL separado das tabelas das outras aplicações.
 
-## Não executado
+Pendente de validação real:
 
-- Teste visual no Chromium/Android/iPhone: o ambiente não disponibilizou um navegador e a instalação do Chromium falhou.
-- Teste com Supabase real, incluindo execução do SQL, envio de e-mail, autenticação, isolamento RLS entre duas contas e sincronização real entre aparelhos.
-- Instalação da PWA, cache e abertura offline em navegador real.
-
-A versão é uma implementação inicial, não uma homologação de produção. Use a lista do LEIA-ME antes de depender dela para seu histórico definitivo.
+- Executar o SQL no projeto Supabase e gerar a chave pessoal.
+- Vincular computador e celular e conferir a sincronização.
+- Conferir o layout no navegador publicado e a instalação da PWA.
