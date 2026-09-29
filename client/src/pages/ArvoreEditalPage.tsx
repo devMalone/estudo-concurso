@@ -34,7 +34,21 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
   const [filtroStatus, setFiltroStatus] = useState<'todos' | 'nao_iniciados' | 'em_estudo' | 'concluidos' | 'revisao_pendente'>('todos');
-  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const STORAGE_KEY_EXPANDED = 'arvore_expanded_nodes_v1';
+
+  const [expandedNodes, setExpandedNodes] = useState<Set<string>>(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY_EXPANDED);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return new Set(parsed);
+        }
+      }
+    } catch (_) {}
+    return new Set<string>();
+  });
+
   const [assuntoSelecionado, setAssuntoSelecionado] = useState<any | null>(null);
   const [modalDetalhesOpen, setModalDetalhesOpen] = useState(false);
   const [salvandoEstudo, setSalvandoEstudo] = useState(false);
@@ -48,6 +62,16 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
   const [formAcertos, setFormAcertos] = useState(0);
   const [formAnotacoes, setFormAnotacoes] = useState('');
 
+  const updateExpanded = (updater: (prev: Set<string>) => Set<string>) => {
+    setExpandedNodes((prev) => {
+      const next = updater(prev);
+      try {
+        localStorage.setItem(STORAGE_KEY_EXPANDED, JSON.stringify(Array.from(next)));
+      } catch (_) {}
+      return next;
+    });
+  };
+
   const loadArvore = async () => {
     try {
       setLoading(true);
@@ -55,17 +79,26 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
       const res = await api.getArvore();
       setArvore(res.data);
 
-      // Expandir primeiras disciplinas por padrão
-      const initialExpanded = new Set<string>();
-      for (const d of res.data) {
-        initialExpanded.add(`disc-${d.id}`);
-        for (const a of d.assuntos) {
-          if (a.children && a.children.length > 0) {
-            initialExpanded.add(a.id);
+      // Preservar os nós que o usuário já expandiu/recolheu
+      setExpandedNodes((current) => {
+        if (current.size > 0) {
+          return current; // Não abre tudo nem fecha nada que o usuário já organizou
+        }
+        // Apenas na primeira visita: expandir primeiro nível
+        const initialExpanded = new Set<string>();
+        for (const d of res.data) {
+          initialExpanded.add(`disc-${d.id}`);
+          for (const a of d.assuntos) {
+            if (a.children && a.children.length > 0) {
+              initialExpanded.add(a.id);
+            }
           }
         }
-      }
-      setExpandedNodes(initialExpanded);
+        try {
+          localStorage.setItem(STORAGE_KEY_EXPANDED, JSON.stringify(Array.from(initialExpanded)));
+        } catch (_) {}
+        return initialExpanded;
+      });
     } catch (err) {
       console.error('Erro ao carregar árvore:', err);
     } finally {
@@ -78,7 +111,7 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
   }, []);
 
   const toggleExpand = (id: string) => {
-    setExpandedNodes((prev) => {
+    updateExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -183,18 +216,46 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
     return (matchBusca && matchFiltro) || filhosFiltrados;
   };
 
+  const formatarDataBR = (dataIso?: string | null): string => {
+    if (!dataIso) return '';
+    try {
+      const semHora = String(dataIso).split('T')[0];
+      const partes = semHora.split('-');
+      if (partes.length === 3) {
+        return `${partes[2]}/${partes[1]}/${partes[0]}`;
+      }
+    } catch (_) {}
+    return String(dataIso);
+  };
+
   const renderNode = (node: AssuntoNode, depth: number = 0) => {
     if (!filtrarAssunto(node)) return null;
 
     const hasChildren = node.children && node.children.length > 0;
     const isExpanded = expandedNodes.has(node.id);
 
+    const isConcluido = Boolean(node.estudo_concluido || (node as any).concluido);
+    const dataEstudoFormatada = formatarDataBR(
+      (node as any).data_ultimo_estudo || (node as any).data_estudo || (node as any).data_conclusao
+    );
+    const foiEstudado = Boolean(
+      isConcluido ||
+      node.em_estudo ||
+      (node.tempo_minutos && node.tempo_minutos > 0) ||
+      ((node as any).total_sessoes && (node as any).total_sessoes > 0) ||
+      dataEstudoFormatada
+    );
+
     return (
       <div key={node.id} className="select-none">
         <div
-          className={`group flex items-center justify-between py-2 px-3 rounded-lg text-sm transition-all hover:bg-slate-100 dark:hover:bg-slate-800/60 ${
-            node.is_leaf ? 'cursor-pointer' : 'cursor-pointer'
-          }`}
+          className={`group flex items-center justify-between py-2 px-3 rounded-lg text-sm transition-all border ${
+            isConcluido
+              ? 'bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-200/70 dark:border-emerald-800/40 text-emerald-950 dark:text-emerald-100 hover:bg-emerald-100/60 dark:hover:bg-emerald-950/40'
+              : foiEstudado
+              ? 'bg-emerald-50/25 dark:bg-emerald-950/10 border-emerald-200/50 dark:border-emerald-800/30 text-slate-800 dark:text-slate-100 hover:bg-emerald-50/60 dark:hover:bg-emerald-950/20'
+              : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800/60 text-slate-800 dark:text-slate-200'
+          } cursor-pointer`}
           style={{ paddingLeft: `${Math.max(12, depth * 24)}px` }}
           onClick={() => {
             if (hasChildren) {
@@ -217,8 +278,16 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                 {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
               </button>
             ) : (
-              <div className="w-6 flex items-center justify-center">
-                <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+              <div className="w-6 flex items-center justify-center shrink-0">
+                {isConcluido ? (
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                ) : foiEstudado ? (
+                  <div className="w-3.5 h-3.5 rounded-full bg-emerald-100 dark:bg-emerald-900/60 border border-emerald-500 flex items-center justify-center">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-600 dark:bg-emerald-400" />
+                  </div>
+                ) : (
+                  <span className="w-1.5 h-1.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                )}
               </div>
             )}
 
@@ -226,7 +295,15 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
               {node.codigo_edital}
             </span>
 
-            <span className={`truncate text-sm ${node.is_leaf ? (node.estudo_concluido ? 'text-slate-500 dark:text-slate-400 line-through decoration-slate-300 dark:decoration-slate-700' : 'text-slate-800 dark:text-slate-200 font-medium') : 'font-semibold text-slate-900 dark:text-slate-100'}`}>
+            <span
+              className={`truncate text-sm ${
+                node.is_leaf
+                  ? isConcluido
+                    ? 'text-slate-500 dark:text-slate-400 line-through decoration-slate-300 dark:decoration-slate-700'
+                    : 'text-slate-800 dark:text-slate-200 font-medium'
+                  : 'font-semibold text-slate-900 dark:text-slate-100'
+              }`}
+            >
               {node.titulo}
             </span>
           </div>
@@ -240,15 +317,21 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
 
             {node.is_leaf && (
               <div className="flex items-center space-x-1.5">
-                {node.estudo_concluido ? (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center space-x-1">
-                    <Check className="w-3 h-3 text-emerald-600" />
-                    <span>Concluído {node.tempo_minutos > 0 ? `• ${node.tempo_minutos}min` : ''}</span>
+                {isConcluido ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 flex items-center space-x-1 shadow-xs">
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>
+                      Concluído{dataEstudoFormatada ? ` em ${dataEstudoFormatada}` : ''}
+                      {node.tempo_minutos > 0 ? ` • ${node.tempo_minutos}min` : ''}
+                    </span>
                   </span>
-                ) : (node.em_estudo || node.tempo_minutos > 0) ? (
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-sky-50 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 border border-sky-200 dark:border-sky-800 flex items-center space-x-1">
-                    <Clock className="w-3 h-3 text-sky-600" />
-                    <span>Em Estudo • {node.tempo_minutos}min {node.total_sessoes ? `(${node.total_sessoes}x)` : ''}</span>
+                ) : foiEstudado ? (
+                  <span className="px-2.5 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-300/80 dark:border-emerald-700/60 flex items-center space-x-1 shadow-xs">
+                    <Clock className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                    <span>
+                      Estudado{dataEstudoFormatada ? ` em ${dataEstudoFormatada}` : ''} • {node.tempo_minutos}min
+                      {(node as any).total_sessoes ? ` (${(node as any).total_sessoes}x)` : ''}
+                    </span>
                   </span>
                 ) : null}
 
@@ -258,17 +341,17 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                     e.stopPropagation();
                     abrirDetalhes(node.id);
                   }}
-                  className={`p-1.5 px-2.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 transition-all ${
-                    node.estudo_concluido
+                  className={`p-1.5 px-2.5 rounded-md text-xs font-semibold flex items-center space-x-1.5 transition-all shadow-xs ${
+                    isConcluido
                       ? 'bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                      : (node.em_estudo || node.tempo_minutos > 0)
-                      ? 'bg-sky-600 hover:bg-sky-700 text-white shadow-xs'
-                      : 'bg-slate-100 hover:bg-sky-600 hover:text-white text-slate-700 dark:bg-slate-800 dark:text-slate-300 shadow-xs'
+                      : foiEstudado
+                      ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                      : 'bg-slate-100 hover:bg-sky-600 hover:text-white text-slate-700 dark:bg-slate-800 dark:text-slate-300'
                   }`}
                   title="Registrar sessão de estudo ou ver detalhes"
                 >
                   <BookOpen className="w-3.5 h-3.5" />
-                  <span>{node.estudo_concluido ? 'Ver Estudo' : 'Registrar Estudo'}</span>
+                  <span>{isConcluido ? 'Ver Estudo' : foiEstudado ? 'Novo Estudo' : 'Registrar Estudo'}</span>
                 </button>
               </div>
             )}
@@ -315,14 +398,14 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                 };
                 d.assuntos.forEach(addRecursively);
               }
-              setExpandedNodes(allIds);
+              updateExpanded(() => allIds);
             }}
             className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             Expandir Tudo
           </button>
           <button
-            onClick={() => setExpandedNodes(new Set())}
+            onClick={() => updateExpanded(() => new Set())}
             className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
           >
             Recolher Tudo
@@ -373,6 +456,10 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
         <div className="space-y-4">
           {arvore.map((disc) => {
             const discExpanded = expandedNodes.has(`disc-${disc.id}`);
+            const perc = Number(disc.percentual_cobertura ?? (disc as any).percentualConcluido ?? 0) || 0;
+            const totalFolhas = Number(disc.total_topicos_folha ?? (disc as any).total_assuntos ?? 0) || 0;
+            const concluidos = Number(disc.topicos_estudados ?? (disc as any).assuntos_concluidos ?? 0) || 0;
+
             return (
               <div
                 key={disc.id}
@@ -397,20 +484,20 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                         </span>
                       </div>
                       <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
-                        {disc.topicos_estudados} de {disc.total_topicos_folha} tópicos concluídos • Peso oficial {disc.peso}
+                        {concluidos} de {totalFolhas} aulas/tópicos concluídos • Peso oficial {disc.peso}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center space-x-4">
                     <div className="text-right hidden sm:block">
-                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                        {disc.percentual_cobertura}%
+                      <div className="text-xs font-bold text-slate-800 dark:text-slate-200 font-mono">
+                        {perc}%
                       </div>
                       <div className="w-24 bg-slate-200 dark:bg-slate-700 h-1.5 rounded-full overflow-hidden mt-1">
                         <div
-                          className="bg-sky-600 h-full rounded-full transition-all"
-                          style={{ width: `${disc.percentual_cobertura}%` }}
+                          className="bg-emerald-600 dark:bg-emerald-500 h-full rounded-full transition-all duration-300"
+                          style={{ width: `${Math.min(100, Math.max(0, perc))}%` }}
                         />
                       </div>
                     </div>
@@ -658,21 +745,22 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                 />
               </div>
 
-              {/* Opção de Concluir o Tópico */}
-              <div className="p-3 rounded-lg bg-sky-50/70 dark:bg-sky-950/40 border border-sky-100 dark:border-sky-900 space-y-1">
-                <label className="flex items-center space-x-2 cursor-pointer">
+              {/* Opção de Concluir a Aula ou Tópico */}
+              <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 space-y-1.5">
+                <label className="flex items-center space-x-2.5 cursor-pointer">
                   <input
                     type="checkbox"
                     checked={formConcluido}
                     onChange={(e) => setFormConcluido(e.target.checked)}
-                    className="w-4 h-4 rounded text-sky-600 focus:ring-sky-500"
+                    className="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500"
                   />
-                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100">
-                    Marcar este tópico como 100% concluído no edital
+                  <span className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center space-x-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                    <span>Concluir esta aula / tópico (computar na porcentagem de conclusão)</span>
                   </span>
                 </label>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 pl-6 leading-relaxed">
-                  Deixe desmarcado se você ainda for estudar outras aulas deste tópico (ex: faltam mais aulas do cursinho). O tempo e questões serão somados normalmente ao seu painel e histórico! Marque apenas quando finalizar o assunto para agendar as revisões periódicas (D+7, D+15 e D+30).
+                <p className="text-[11px] text-slate-600 dark:text-slate-400 pl-6.5 leading-relaxed">
+                  Ao marcar como concluído, esta aula somará imediatamente à porcentagem de conclusão da disciplina e ativará as revisões periódicas (D+7, D+15 e D+30). Se você ainda for estudar mais partes desta aula, deixe desmarcado para apenas registrar o tempo estudado hoje!
                 </p>
               </div>
 

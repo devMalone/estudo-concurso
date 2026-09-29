@@ -136,6 +136,12 @@ export const browserEngine = {
       sessoesMap.get(s.assunto_id)!.push(s);
     }
 
+    // Identificar nós que são pais (possuem filhos)
+    const parentIds = new Set<string>();
+    for (const a of seedData.assuntos) {
+      if (a.parent_id) parentIds.add(a.parent_id);
+    }
+
     // Montar nós de assuntos
     const nodes: any[] = seedData.assuntos.map((a) => {
       const est = estudosMap.get(a.id);
@@ -144,6 +150,21 @@ export const browserEngine = {
       const totalTempo = (est?.tempo_estudado_minutos || 0) + totalTempoSessoes;
       const concluido = Boolean(est?.concluido);
       const emEstudo = !concluido && (sessList.length > 0 || totalTempo > 0);
+      const isLeaf = !parentIds.has(a.id);
+
+      // Obter data mais recente de estudo ou conclusão
+      let dataUltimoEstudo = est?.data_conclusao || est?.data_estudo || null;
+      if (sessList.length > 0) {
+        const sorted = [...sessList].sort((s1, s2) => {
+          const d1 = s1.data || s1.data_sessao || '';
+          const d2 = s2.data || s2.data_sessao || '';
+          return d2.localeCompare(d1);
+        });
+        const dRec = sorted[0].data || sorted[0].data_sessao;
+        if (dRec && (!dataUltimoEstudo || dRec > dataUltimoEstudo)) {
+          dataUltimoEstudo = dRec;
+        }
+      }
 
       return {
         id: a.id,
@@ -154,11 +175,18 @@ export const browserEngine = {
         nivel: a.nivel,
         ordem: a.ordem,
         peso_edital: a.peso_edital,
+        trecho_original_edital: a.trecho_original_edital || null,
+        pagina_edital: a.pagina_edital || null,
+        is_leaf: isLeaf,
         concluido,
+        estudo_concluido: concluido,
         em_estudo: emEstudo,
         data_conclusao: est?.data_conclusao || null,
+        data_estudo: dataUltimoEstudo,
+        data_ultimo_estudo: dataUltimoEstudo,
         total_revisoes: est?.total_revisoes || 0,
         proxima_revisao: est?.proxima_revisao || null,
+        tempo_minutos: totalTempo,
         tempo_estudado_minutos: totalTempo,
         total_sessoes: sessList.length,
         anotacoes: est?.anotacoes || null,
@@ -183,9 +211,10 @@ export const browserEngine = {
       for (const root of rootAssuntos) attachChildren(root);
 
       const todosAssuntosDisc = nodes.filter((n) => n.disciplina_id === d.id);
-      const concluidos = todosAssuntosDisc.filter((n) => n.concluido).length;
-      const total = todosAssuntosDisc.length;
-      const percentual = total > 0 ? Math.round((concluidos / total) * 100) : 0;
+      const folhasDisc = todosAssuntosDisc.filter((n) => n.is_leaf);
+      const totalFolhas = folhasDisc.length;
+      const folhasConcluidas = folhasDisc.filter((n) => n.estudo_concluido).length;
+      const percentual = totalFolhas > 0 ? Math.round((folhasConcluidas / totalFolhas) * 100) : 0;
 
       return {
         id: d.id,
@@ -195,9 +224,13 @@ export const browserEngine = {
         peso: d.peso,
         ordem: d.ordem,
         total_itens_edital: d.total_itens_edital,
-        total_assuntos: total,
-        assuntos_concluidos: concluidos,
+        total_assuntos: todosAssuntosDisc.length,
+        total_topicos_folha: totalFolhas,
+        topicos_estudados: folhasConcluidas,
+        assuntos_concluidos: folhasConcluidas,
+        percentual_cobertura: percentual,
         percentualConcluido: percentual,
+        revisoes_atrasadas: 0,
         assuntos: rootAssuntos
       };
     });
@@ -323,6 +356,7 @@ export const browserEngine = {
       estudos.push(est);
     } else {
       est.tempo_estudado_minutos = (est.tempo_estudado_minutos || 0) + tempoMinutos;
+      est.data_estudo = dataRef;
       if (concluirTopico) {
         est.concluido = 1;
         est.data_conclusao = dataRef;
@@ -440,10 +474,18 @@ export const browserEngine = {
         ? `${Math.floor(totalMinutosSemana / 60)}h ${totalMinutosSemana % 60}m`
         : `${totalMinutosSemana} min`;
 
-    // 2. Cobertura do Edital
-    const concluidos = estudos.filter((e) => e.concluido).length;
-    const totalAssuntos = seedData.assuntos.length;
-    const percentualCobertura = totalAssuntos > 0 ? Math.round((concluidos / totalAssuntos) * 100) : 0;
+    // 2. Cobertura do Edital (folhas / unidades de estudo)
+    const parentIdsDash = new Set<string>();
+    for (const a of seedData.assuntos) {
+      if (a.parent_id) parentIdsDash.add(a.parent_id);
+    }
+    const folhasTotal = seedData.assuntos.filter((a) => !parentIdsDash.has(a.id));
+    const folhasConcluidas = folhasTotal.filter((a) => {
+      const e = estudos.find((item) => item.assunto_id === a.id);
+      return Boolean(e?.concluido);
+    }).length;
+    const totalAssuntosEstudaveis = folhasTotal.length;
+    const percentualCobertura = totalAssuntosEstudaveis > 0 ? Math.round((folhasConcluidas / totalAssuntosEstudaveis) * 100) : 0;
 
     // 3. Revisões
     const revisoesAssuntosMap = new Map(seedData.assuntos.map((a) => [a.id, a]));
@@ -520,8 +562,8 @@ export const browserEngine = {
           percentualMeta
         },
         cobertura: {
-          topicosEstudados: concluidos,
-          totalTopicosEstudaveis: totalAssuntos,
+          topicosEstudados: folhasConcluidas,
+          totalTopicosEstudaveis: totalAssuntosEstudaveis,
           percentual: percentualCobertura
         },
         revisoes: {
