@@ -123,17 +123,23 @@ export const browserEngine = {
     const sessoesEstudo = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []);
     const questoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
 
-    // Mapa de estudos por assunto_id
-    const estudosMap = new Map<string, any>();
-    for (const e of estudos) {
-      estudosMap.set(e.assunto_id, e);
-    }
-
     // Mapa de sessões por assunto_id
     const sessoesMap = new Map<string, any[]>();
     for (const s of sessoesEstudo) {
       if (!sessoesMap.has(s.assunto_id)) sessoesMap.set(s.assunto_id, []);
       sessoesMap.get(s.assunto_id)!.push(s);
+    }
+
+    // Auto-limpeza: Se há registros em estudos que não possuem nenhuma sessão ativa, limpar
+    const estudosValidos = estudos.filter((e) => (sessoesMap.get(e.assunto_id) || []).length > 0);
+    if (estudosValidos.length !== estudos.length) {
+      setItem(LS_KEYS.ESTUDOS, estudosValidos);
+    }
+
+    // Mapa de estudos válidos por assunto_id
+    const estudosMap = new Map<string, any>();
+    for (const e of estudosValidos) {
+      estudosMap.set(e.assunto_id, e);
     }
 
     // Identificar nós que são pais (possuem filhos)
@@ -147,23 +153,20 @@ export const browserEngine = {
       const est = estudosMap.get(a.id);
       const sessList = sessoesMap.get(a.id) || [];
       const totalTempoSessoes = sessList.reduce((acc, curr) => acc + (curr.tempo_minutos || 0), 0);
-      const totalTempo = (est?.tempo_estudado_minutos || 0) + totalTempoSessoes;
-      const concluido = Boolean(est?.concluido);
-      const emEstudo = !concluido && (sessList.length > 0 || totalTempo > 0);
+      const totalTempo = sessList.length > 0 ? totalTempoSessoes : 0;
+      const concluido = sessList.length > 0 ? Boolean(est?.concluido || sessList.some(s => s.concluiu_topico)) : false;
+      const emEstudo = !concluido && (sessList.length > 0 && totalTempo > 0);
       const isLeaf = !parentIds.has(a.id);
 
       // Obter data mais recente de estudo ou conclusão
-      let dataUltimoEstudo = est?.data_conclusao || est?.data_estudo || null;
+      let dataUltimoEstudo: string | null = null;
       if (sessList.length > 0) {
         const sorted = [...sessList].sort((s1, s2) => {
           const d1 = s1.data || s1.data_sessao || '';
           const d2 = s2.data || s2.data_sessao || '';
           return d2.localeCompare(d1);
         });
-        const dRec = sorted[0].data || sorted[0].data_sessao;
-        if (dRec && (!dataUltimoEstudo || dRec > dataUltimoEstudo)) {
-          dataUltimoEstudo = dRec;
-        }
+        dataUltimoEstudo = sorted[0].data || sorted[0].data_sessao || null;
       }
 
       return {
@@ -243,14 +246,30 @@ export const browserEngine = {
     if (!assunto) throw new Error('Assunto não encontrado');
 
     const disciplina = seedData.disciplinas.find((d) => d.id === assunto.disciplina_id);
-    const estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
-    const est = estudos.find((e) => e.assunto_id === id) || null;
 
     const rawSessoes = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []).filter((s) => s.assunto_id === id);
     const sessoesEstudo = rawSessoes.map((s) => ({
       ...s,
       data: s.data || s.data_sessao || getToday()
     }));
+
+    let estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
+    let est = estudos.find((e) => e.assunto_id === id) || null;
+
+    // Se o usuário excluiu todas as sessões, auto-limpar estudo órfão deste assunto
+    if (sessoesEstudo.length === 0 && est) {
+      estudos = estudos.filter((e) => e.assunto_id !== id);
+      setItem(LS_KEYS.ESTUDOS, estudos);
+      est = null;
+
+      // Limpar revisões pendentes se não há mais estudo
+      let revisoesAll = getItem<any[]>(LS_KEYS.REVISOES, []);
+      revisoesAll = revisoesAll.filter((r) => r.assunto_id !== id);
+      setItem(LS_KEYS.REVISOES, revisoesAll);
+    }
+
+    const totalTempoMinutos = sessoesEstudo.reduce((sum, s) => sum + (s.tempo_minutos || 0), 0);
+    const isConcluidoAssunto = sessoesEstudo.length > 0 ? Boolean(est?.concluido || sessoesEstudo.some((s) => s.concluiu_topico)) : false;
 
     const questoes = getItem<any[]>(LS_KEYS.QUESTOES, []).filter((q) => q.assunto_id === id);
     const revisoes = getItem<any[]>(LS_KEYS.REVISOES, []).filter((r) => r.assunto_id === id);
@@ -277,13 +296,17 @@ export const browserEngine = {
         assunto: {
           ...assunto,
           disciplina_nome: disciplina?.nome,
-          concluido: Boolean(est?.concluido),
-          data_conclusao: est?.data_conclusao,
-          tempo_estudado_minutos: est?.tempo_estudado_minutos || 0,
+          concluido: isConcluidoAssunto,
+          data_conclusao: isConcluidoAssunto ? (est?.data_conclusao || sessoesEstudo[0]?.data) : null,
+          tempo_estudado_minutos: totalTempoMinutos,
           anotacoes: est?.anotacoes
         },
         breadcrumb,
-        estudo: est,
+        estudo: est ? {
+          ...est,
+          concluido: isConcluidoAssunto,
+          tempo_estudado_minutos: totalTempoMinutos
+        } : null,
         sessoesEstudo,
         sessoes: questoes,
         questoes,
@@ -381,13 +404,67 @@ export const browserEngine = {
     };
   },
 
+  resetarEstudoAssunto(assuntoId: string) {
+    let estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
+    estudos = estudos.filter((e) => e.assunto_id !== assuntoId);
+    setItem(LS_KEYS.ESTUDOS, estudos);
+
+    let sessoes = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []);
+    sessoes = sessoes.filter((s) => s.assunto_id !== assuntoId);
+    setItem(LS_KEYS.SESSOES_ESTUDO, sessoes);
+
+    let revisoes = getItem<any[]>(LS_KEYS.REVISOES, []);
+    revisoes = revisoes.filter((r) => r.assunto_id !== assuntoId);
+    setItem(LS_KEYS.REVISOES, revisoes);
+
+    let questoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    questoes = questoes.filter((q) => q.assunto_id !== assuntoId);
+    setItem(LS_KEYS.QUESTOES, questoes);
+
+    return { success: true };
+  },
+
   excluirSessaoEstudo(sessaoId: string) {
     let sessoes = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []);
     const target = sessoes.find((s) => s.id === sessaoId);
-    if (!target) throw new Error('Sessão de estudo não encontrada');
+    if (!target) return { success: true };
 
+    const assuntoId = target.assunto_id;
     sessoes = sessoes.filter((s) => s.id !== sessaoId);
     setItem(LS_KEYS.SESSOES_ESTUDO, sessoes);
+
+    const remaining = sessoes.filter((s) => s.assunto_id === assuntoId);
+    let estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
+
+    if (remaining.length === 0) {
+      // Se não sobrou nenhuma sessão, remover completamente o estudo e as revisões deste assunto
+      estudos = estudos.filter((e) => e.assunto_id !== assuntoId);
+      setItem(LS_KEYS.ESTUDOS, estudos);
+
+      let revisoes = getItem<any[]>(LS_KEYS.REVISOES, []);
+      revisoes = revisoes.filter((r) => r.assunto_id !== assuntoId);
+      setItem(LS_KEYS.REVISOES, revisoes);
+    } else {
+      const remainingTempo = remaining.reduce((acc, curr) => acc + (curr.tempo_minutos || 0), 0);
+      const stillConcluded = remaining.some((s) => s.concluiu_topico);
+      const sorted = [...remaining].sort((a, b) => (b.data || '').localeCompare(a.data || ''));
+      const latestDate = sorted[0]?.data || null;
+
+      const idx = estudos.findIndex((e) => e.assunto_id === assuntoId);
+      if (idx >= 0) {
+        estudos[idx].tempo_estudado_minutos = remainingTempo;
+        estudos[idx].concluido = stillConcluded ? 1 : 0;
+        estudos[idx].data_conclusao = stillConcluded ? (estudos[idx].data_conclusao || latestDate) : null;
+        estudos[idx].data_estudo = latestDate;
+      }
+      setItem(LS_KEYS.ESTUDOS, estudos);
+
+      if (!stillConcluded) {
+        let revisoes = getItem<any[]>(LS_KEYS.REVISOES, []);
+        revisoes = revisoes.filter((r) => r.assunto_id !== assuntoId);
+        setItem(LS_KEYS.REVISOES, revisoes);
+      }
+    }
 
     return { success: true };
   },

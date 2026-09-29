@@ -99,6 +99,15 @@ export const api = {
       return browserEngine.excluirSessaoEstudo(sessaoId);
     }
   },
+  resetarEstudoAssunto: async (assuntoId: string) => {
+    try {
+      return await apiFetch<{ success: boolean }>(`/assuntos/${assuntoId}/estudo`, {
+        method: 'DELETE'
+      });
+    } catch {
+      return browserEngine.resetarEstudoAssunto(assuntoId);
+    }
+  },
 
   // Sessões de Questões
   getQuestoes: async (params?: { disciplinaId?: string; assuntoId?: string; tipo?: string; limite?: number }) => {

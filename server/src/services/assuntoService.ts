@@ -467,15 +467,35 @@ export class AssuntoService {
     db.prepare('DELETE FROM sessoes_estudo WHERE id = ?').run(sessaoId);
 
     // Recalcular tempo acumulado em estudos
-    const soma = db.prepare('SELECT SUM(tempo_minutos) as s FROM sessoes_estudo WHERE assunto_id = ?').get(sessao.assunto_id) as { s: number | null };
+    const soma = db.prepare('SELECT SUM(tempo_minutos) as s, COUNT(*) as c FROM sessoes_estudo WHERE assunto_id = ?').get(sessao.assunto_id) as { s: number | null; c: number };
     const totalMinutos = soma.s || 0;
+    const totalSessoes = soma.c || 0;
 
-    db.prepare(`
-      UPDATE estudos
-      SET tempo_minutos = ?, atualizado_em = ?
-      WHERE assunto_id = ?
-    `).run(totalMinutos, new Date().toISOString(), sessao.assunto_id);
+    if (totalSessoes === 0) {
+      db.prepare('DELETE FROM estudos WHERE assunto_id = ?').run(sessao.assunto_id);
+      db.prepare('DELETE FROM revisoes WHERE assunto_id = ?').run(sessao.assunto_id);
+    } else {
+      const stillConcluded = db.prepare('SELECT COUNT(*) as c FROM sessoes_estudo WHERE assunto_id = ? AND concluiu_topico = 1').get(sessao.assunto_id) as { c: number };
+      const concluido = stillConcluded.c > 0 ? 1 : 0;
+      db.prepare(`
+        UPDATE estudos
+        SET tempo_minutos = ?, concluido = ?, atualizado_em = ?
+        WHERE assunto_id = ?
+      `).run(totalMinutos, concluido, new Date().toISOString(), sessao.assunto_id);
 
+      if (concluido === 0) {
+        db.prepare('DELETE FROM revisoes WHERE assunto_id = ?').run(sessao.assunto_id);
+      }
+    }
+
+    return { success: true };
+  }
+
+  static resetarEstudoAssunto(assuntoId: string) {
+    const db = getDatabase();
+    db.prepare('DELETE FROM sessoes_estudo WHERE assunto_id = ?').run(assuntoId);
+    db.prepare('DELETE FROM estudos WHERE assunto_id = ?').run(assuntoId);
+    db.prepare('DELETE FROM revisoes WHERE assunto_id = ?').run(assuntoId);
     return { success: true };
   }
 

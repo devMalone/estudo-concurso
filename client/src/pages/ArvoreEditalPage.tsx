@@ -192,6 +192,24 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
     }
   };
 
+  const handleZerarEstudo = async () => {
+    if (!assuntoSelecionado) return;
+    if (!window.confirm('Deseja realmente zerar todo o estudo registrado para este tópico e desmarcá-lo? Todas as sessões deste tópico serão removidas.')) {
+      return;
+    }
+    try {
+      const { api } = await import('../api/client');
+      await api.resetarEstudoAssunto(assuntoSelecionado.assunto.id);
+      await loadArvore();
+      const updated = await api.getAssuntoDetalhes(assuntoSelecionado.assunto.id);
+      setAssuntoSelecionado(updated.data);
+      setSucessoFeedback('Estudo deste tópico zerado com sucesso.');
+      onRefreshGlobal();
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   // Filtragem recursiva respeitando o contexto
   const filtrarAssunto = (node: AssuntoNode): boolean => {
     // Busca por texto no nó ou nos filhos
@@ -594,11 +612,24 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                 </div>
               </div>
 
-              {isConcluidoAssunto && (
-                <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white shrink-0">
-                  Concluído
-                </span>
-              )}
+              <div className="flex items-center space-x-2 shrink-0">
+                {isConcluidoAssunto && (
+                  <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-600 text-white shrink-0">
+                    Concluído
+                  </span>
+                )}
+                {(isConcluidoAssunto || totalMinutosAcumulados > 0 || totalSessoesAssunto > 0) && (
+                  <button
+                    type="button"
+                    onClick={handleZerarEstudo}
+                    className="px-2.5 py-1 rounded-md text-[11px] font-semibold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 transition-colors flex items-center space-x-1 shadow-xs"
+                    title="Remover todas as sessões e desmarcar conclusão deste tópico"
+                  >
+                    <Trash2 className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Zerar Estudo</span>
+                  </button>
+                )}
+              </div>
             </div>
 
             {/* Feedback de Sucesso */}

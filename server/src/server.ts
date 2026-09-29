@@ -133,6 +133,16 @@ app.delete('/api/assuntos/sessoes-estudo/:id', (req, res) => {
   }
 });
 
+// Resetar estudo de um assunto
+app.delete('/api/assuntos/:id/estudo', (req, res) => {
+  try {
+    const resultado = AssuntoService.resetarEstudoAssunto(req.params.id);
+    res.json(resultado);
+  } catch (err: any) {
+    res.status(400).json({ success: false, error: err.message });
+  }
+});
+
 
 // -------------------------------------------------------------
 // 3. SESSÕES DE QUESTÕES (TREINO INDEPENDENTE)
