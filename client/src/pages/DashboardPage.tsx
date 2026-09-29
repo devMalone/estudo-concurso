@@ -8,7 +8,6 @@ import {
   Target,
   ArrowRight,
   BookOpen,
-  Sparkles,
   HelpCircle,
   Zap
 } from 'lucide-react';
@@ -71,33 +70,37 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in duration-150">
-      {/* Cabeçalho do Concurso & Contagem Regressiva */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-sky-900 via-sky-800 to-indigo-900 text-white shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center space-x-2 text-sky-200 text-xs font-semibold uppercase tracking-wider mb-1">
-            <span>{concurso.orgao}</span>
+      {/* Cabeçalho Institucional do Concurso & Contagem Regressiva */}
+      <div className="p-6 rounded-xl bg-gradient-to-r from-slate-950 via-bacen-950 to-bacen-900 border border-bacen-800/40 text-white shadow-card flex flex-col md:flex-row md:items-center justify-between gap-5 relative overflow-hidden">
+        <div className="relative z-10">
+          <div className="flex items-center space-x-2 text-sky-300 text-[11px] font-mono uppercase tracking-wider mb-1.5">
+            <span className="font-semibold text-white bg-bacen-800/80 px-2 py-0.5 rounded border border-bacen-700/60">{concurso.orgao}</span>
             <span>•</span>
             <span>{concurso.banca}</span>
+            <span>•</span>
+            <span className="text-sky-300/80">Edital 1/2013</span>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold">{concurso.cargo}</h1>
-          <p className="text-sm text-sky-100 mt-0.5">{concurso.area}</p>
+          <h1 className="text-xl md:text-2xl font-bold tracking-tight text-white">{concurso.cargo}</h1>
+          <p className="text-xs md:text-sm text-slate-300 mt-1 max-w-xl">{concurso.area}</p>
         </div>
 
-        <div className="flex items-center space-x-4 bg-white/10 backdrop-blur-md px-5 py-3 rounded-xl border border-white/15">
-          <Calendar className="w-8 h-8 text-sky-300 shrink-0" />
+        <div className="relative z-10 flex items-center space-x-4 bg-slate-900/60 border border-slate-700/50 px-5 py-3 rounded-xl shadow-inner">
+          <div className="w-10 h-10 rounded-lg bg-bacen-800/80 border border-bacen-600/50 flex items-center justify-center shrink-0">
+            <Calendar className="w-5 h-5 text-sky-300" />
+          </div>
           <div>
-            <div className="text-[11px] text-sky-200 font-medium uppercase">
-              {concurso.dataProvaEstimada ? 'Data Estimada da Prova' : 'Data Oficial da Prova'}
+            <div className="text-[10px] text-slate-400 font-mono uppercase tracking-wider">
+              {concurso.dataProvaEstimada ? 'Data Estimada' : 'Data Oficial'}
             </div>
-            <div className="text-lg font-bold">
+            <div className="text-base font-bold font-mono tracking-tight text-white">
               {concurso.dataProva ? concurso.dataProva.split('-').reverse().join('/') : 'A definir'}
             </div>
             {concurso.diasParaProva !== null && (
-              <div className="text-xs text-sky-200 font-medium">
+              <div className="text-xs font-mono font-medium text-sky-300 mt-0.5">
                 {concurso.diasParaProva > 0
                   ? `Faltam ${concurso.diasParaProva} dias`
                   : concurso.diasParaProva === 0
-                  ? 'Hoje é o dia da prova!'
+                  ? 'Dia da Prova Hoje!'
                   : `Realizada há ${Math.abs(concurso.diasParaProva)} dias`}
               </div>
             )}
@@ -108,30 +111,30 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
       {/* Cards Principais: 4 Métricas Essenciais */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Card 1: Horas de Estudo na Semana */}
-        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between relative overflow-hidden">
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 w-24 h-24 bg-sky-500/5 rounded-bl-full pointer-events-none" />
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">
               <span className="flex items-center space-x-1.5">
                 <Clock className="w-4 h-4 text-sky-600 dark:text-sky-400" />
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Estudo nesta Semana</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Estudo na Semana</span>
               </span>
-              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300">
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 border border-sky-200 dark:border-sky-800">
                 {estudoSemana?.totalSessoes || 0}x sessões
               </span>
             </div>
 
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2 flex items-baseline space-x-1.5">
+            <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-2 flex items-baseline space-x-1.5">
               <span>{estudoSemana?.horasFormatadas || '0 min'}</span>
               {estudoSemana?.horasDecimais > 0 && (
-                <span className="text-xs font-normal text-slate-400">({estudoSemana.horasDecimais}h)</span>
+                <span className="text-xs font-mono font-normal text-slate-400">({estudoSemana.horasDecimais}h)</span>
               )}
             </div>
 
             {/* Barra de Meta Semanal (se houver) ou Resumo */}
             {estudoSemana?.metaSemanalMinutos > 0 ? (
               <div className="mt-3 space-y-1">
-                <div className="flex justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                <div className="flex justify-between text-[11px] font-mono text-slate-500 dark:text-slate-400">
                   <span>Meta: {estudoSemana.metaSemanalHoras}h</span>
                   <span className="font-bold text-slate-700 dark:text-slate-300">{estudoSemana.percentualMeta}%</span>
                 </div>
@@ -153,7 +156,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
 
           <button
             onClick={() => setActiveTab('arvore')}
-            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-700 dark:hover:text-sky-300"
           >
             <span>Registrar estudo</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -161,17 +164,17 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Card 2: Cobertura do Edital */}
-        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">
               <span className="flex items-center space-x-1.5">
                 <BookOpen className="w-4 h-4 text-emerald-600" />
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Cobertura do Edital</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Cobertura do Edital</span>
               </span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">{cobertura.percentual}%</span>
+              <span className="font-mono font-bold text-slate-800 dark:text-slate-200">{cobertura.percentual}%</span>
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">
-              {cobertura.topicosEstudados} <span className="text-xs font-normal text-slate-500">de {cobertura.totalTopicosEstudaveis} tópicos</span>
+            <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-2">
+              {cobertura.topicosEstudados} <span className="text-xs font-sans font-normal text-slate-500">de {cobertura.totalTopicosEstudaveis} tópicos</span>
             </div>
             <div className="w-full bg-slate-100 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden mt-3">
               <div
@@ -182,7 +185,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <button
             onClick={() => setActiveTab('arvore')}
-            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:underline"
+            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 hover:text-emerald-700"
           >
             <span>Explorar edital</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -190,27 +193,27 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Card 3: Revisões Pendentes */}
-        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">
               <span className="flex items-center space-x-1.5">
                 <AlertCircle className={`w-4 h-4 ${revisoes.atrasadas.length > 0 ? 'text-rose-500' : 'text-emerald-500'}`} />
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Revisões Pendentes</span>
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Fila de Revisões</span>
               </span>
               {revisoes.atrasadas.length > 0 ? (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300 border border-rose-200 dark:border-rose-900">
                   {revisoes.atrasadas.length} Atrasada{revisoes.atrasadas.length > 1 ? 's' : ''}
                 </span>
               ) : (
-                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-900">
                   Em dia
                 </span>
               )}
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">
-              {revisoes.disponiveisHoje.length} <span className="text-xs font-normal text-slate-500">disponíveis hoje</span>
+            <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-2">
+              {revisoes.disponiveisHoje.length} <span className="text-xs font-sans font-normal text-slate-500">disponíveis hoje</span>
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-2 flex items-center space-x-2">
+            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-2 flex items-center space-x-2">
               <span>{revisoes.totais.concluidas || 0} cumpridas</span>
               <span>•</span>
               <span>{revisoes.totais.em_manutencao || 0} em manutenção</span>
@@ -218,7 +221,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <button
             onClick={() => setActiveTab('revisoes')}
-            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:underline"
+            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-700"
           >
             <span>Ver fila de revisões</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -226,23 +229,23 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
         </div>
 
         {/* Card 4: Desempenho nas Questões */}
-        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-col justify-between">
+        <div className="p-5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200/90 dark:border-slate-800/90 shadow-card hover:shadow-card-hover transition-all flex flex-col justify-between">
           <div>
             <div className="flex items-center justify-between text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">
               <span className="flex items-center space-x-1.5">
-                <TrendingUp className="w-4 h-4 text-indigo-600" />
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Taxa de Acertos</span>
+                <TrendingUp className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+                <span className="font-semibold text-slate-700 dark:text-slate-200">Taxa de Acertos</span>
               </span>
-              <span className="text-[10px] font-medium text-slate-400 uppercase">Ponderada</span>
+              <span className="text-[10px] font-mono text-slate-400 uppercase">Ponderada</span>
             </div>
-            <div className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-2">
+            <div className="text-2xl font-bold font-mono tabular-nums text-slate-900 dark:text-slate-100 mt-2">
               {desempenho.taxaGeral !== null ? (
                 <span>{(desempenho.taxaGeral * 100).toFixed(1)}%</span>
               ) : (
                 <span className="text-base font-medium text-slate-400">Sem dados</span>
               )}
             </div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-2">
+            <div className="text-[11px] font-mono text-slate-500 dark:text-slate-400 mt-2">
               {desempenho.totalQuestoes > 0 ? (
                 <span>{desempenho.totalAcertos} de {desempenho.totalQuestoes} questões resolvidas</span>
               ) : (
@@ -252,7 +255,7 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
           </div>
           <button
             onClick={() => setActiveTab('questoes')}
-            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+            className="mt-4 flex items-center space-x-1 text-xs font-semibold text-sky-600 dark:text-sky-400 hover:text-sky-700"
           >
             <span>Histórico de questões</span>
             <ArrowRight className="w-3.5 h-3.5" />
@@ -474,8 +477,8 @@ export const DashboardPage: React.FC<DashboardPageProps> = ({
                     </span>
                   </div>
 
-                  <div className="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center space-x-1">
-                    <Sparkles className="w-3 h-3 shrink-0" />
+                  <div className="text-[11px] font-medium text-rose-600 dark:text-rose-400 flex items-center space-x-1.5">
+                    <Target className="w-3.5 h-3.5 shrink-0" />
                     <span>{item.motivoRecomendacao}</span>
                   </div>
                 </div>

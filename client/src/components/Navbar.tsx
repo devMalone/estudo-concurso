@@ -26,23 +26,23 @@ export const Navbar: React.FC<NavbarProps> = ({
   };
 
   return (
-    <header className="h-16 border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md sticky top-0 z-30 px-6 flex items-center justify-between transition-colors">
+    <header className="h-16 border-b border-slate-200/90 dark:border-slate-800/90 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md sticky top-0 z-30 px-6 flex items-center justify-between transition-colors">
       <div className="flex items-center space-x-4">
         <div className="flex items-center space-x-3">
-          <div className="w-9 h-9 rounded-lg bg-sky-600 text-white flex items-center justify-center font-bold text-sm shadow-sm">
+          <div className="w-9 h-9 rounded-lg bg-bacen-950 border border-bacen-700/70 text-sky-400 flex items-center justify-center font-mono font-bold text-xs tracking-wider shadow-card">
             BCB
           </div>
           <div>
             <div className="flex items-center space-x-2">
-              <span className="font-semibold text-sm text-slate-900 dark:text-slate-100">
+              <span className="font-bold text-sm tracking-tight text-slate-900 dark:text-slate-100">
                 BACEN 2013 • Técnico
               </span>
-              <span className="text-[11px] font-medium bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-300 px-2 py-0.5 rounded-full border border-sky-200 dark:border-sky-800">
+              <span className="text-[10px] font-mono font-semibold bg-bacen-50 text-bacen-800 dark:bg-bacen-950 dark:text-sky-300 px-2 py-0.5 rounded border border-bacen-200 dark:border-bacen-800">
                 Área 1 – Suporte Téc-Adm
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Banca CESPE/UnB • 120 Itens C/E + Discursiva
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Banca CESPE/Cebraspe • 120 Itens C/E + Redação Oficial
             </p>
           </div>
         </div>

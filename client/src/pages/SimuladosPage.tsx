@@ -6,8 +6,7 @@ import {
   CheckCircle2,
   XCircle,
   HelpCircle,
-  Clock,
-  Sparkles
+  Clock
 } from 'lucide-react';
 import { Modal } from '../components/Modal';
 import { Simulado } from '../types';

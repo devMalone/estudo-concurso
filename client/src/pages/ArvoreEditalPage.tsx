@@ -15,7 +15,6 @@ import {
   Plus,
   Trash2,
   Target,
-  Sparkles,
   Calendar,
   AlertCircle
 } from 'lucide-react';

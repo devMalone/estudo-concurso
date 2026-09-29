@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   AlertCircle,
   Clock,
-  Sparkles,
   Undo2,
   Calendar,
   Layers,
@@ -115,7 +114,7 @@ export const RevisoesPage: React.FC<RevisoesPageProps> = ({
       {assuntosComMultiplosAtrasos.length > 0 && (
         <div className="p-4 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 space-y-2">
           <div className="flex items-center space-x-2 font-bold text-sm text-amber-900 dark:text-amber-200">
-            <Sparkles className="w-4 h-4 text-amber-600" />
+            <Layers className="w-4 h-4 text-amber-600" />
             <span>Oportunidade de Revisão de Recuperação</span>
           </div>
           <p className="text-xs text-amber-800 dark:text-amber-300 leading-relaxed">

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal';
-import { CheckCircle2, FileQuestion, Sparkles, AlertTriangle } from 'lucide-react';
+import { CheckCircle2, FileQuestion, Scale, AlertTriangle } from 'lucide-react';
 
 interface QuickCompleteModalProps {
   isOpen: boolean;
@@ -198,10 +198,10 @@ export const QuickCompleteModal: React.FC<QuickCompleteModalProps> = ({
           </div>
 
           {previaHeuristica && (
-            <div className="p-3 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-200 dark:border-indigo-900 text-xs text-indigo-900 dark:text-indigo-200 flex items-start space-x-2">
-              <Sparkles className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
+            <div className="p-3 rounded-lg bg-sky-50 dark:bg-sky-950/40 border border-sky-200 dark:border-sky-800 text-xs text-sky-900 dark:text-sky-200 flex items-start space-x-2">
+              <Scale className="w-4 h-4 text-sky-600 dark:text-sky-400 shrink-0 mt-0.5" />
               <div>
-                <span className="font-semibold">Regra de Manutenção: </span>
+                <span className="font-semibold">Critério Metodológico: </span>
                 <span>{previaHeuristica}</span>
               </div>
             </div>

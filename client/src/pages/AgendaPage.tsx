@@ -7,7 +7,7 @@ import {
   Unlock,
   AlertTriangle,
   RotateCcw,
-  Sparkles,
+  SlidersHorizontal,
   ChevronLeft,
   ChevronRight,
   Plus
@@ -132,8 +132,8 @@ export const AgendaPage: React.FC<AgendaPageProps> = ({
           disabled={gerandoAgenda}
           className="flex items-center space-x-2 px-4 py-2 rounded-lg bg-sky-600 hover:bg-sky-700 text-white text-xs font-semibold shadow-xs disabled:opacity-50 transition-all self-start md:self-auto"
         >
-          <Sparkles className="w-4 h-4" />
-          <span>{gerandoAgenda ? 'Calculando Distribuição...' : 'Gerar / Otimizar Agenda'}</span>
+          <SlidersHorizontal className="w-4 h-4" />
+          <span>{gerandoAgenda ? 'Calculando Distribuição...' : 'Distribuir Carga de Estudos'}</span>
         </button>
       </div>
 
