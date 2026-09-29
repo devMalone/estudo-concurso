@@ -436,25 +436,27 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
       )}
 
       {/* Modal de Detalhes e Registro de Estudo */}
-      {modalDetalhesOpen && assuntoSelecionado && (
+      {modalDetalhesOpen && assuntoSelecionado && assuntoSelecionado.assunto && (
         <Modal
           isOpen={modalDetalhesOpen}
           onClose={() => setModalDetalhesOpen(false)}
-          title={`Assunto: ${assuntoSelecionado.assunto.codigo_edital} - ${assuntoSelecionado.assunto.titulo}`}
+          title={`Assunto: ${assuntoSelecionado.assunto.codigo_edital || ''} - ${assuntoSelecionado.assunto.titulo || 'Detalhes'}`}
           maxWidth="max-w-2xl"
         >
           <div className="space-y-5">
             {/* Breadcrumb de Contexto */}
-            <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 overflow-x-auto py-1">
-              {assuntoSelecionado.breadcrumb.map((b: any, idx: number) => (
-                <React.Fragment key={b.id}>
-                  {idx > 0 && <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />}
-                  <span className={idx === assuntoSelecionado.breadcrumb.length - 1 ? 'font-semibold text-slate-800 dark:text-slate-200' : ''}>
-                    {b.titulo}
-                  </span>
-                </React.Fragment>
-              ))}
-            </div>
+            {assuntoSelecionado.breadcrumb && assuntoSelecionado.breadcrumb.length > 0 && (
+              <div className="flex items-center space-x-1.5 text-xs text-slate-500 dark:text-slate-400 overflow-x-auto py-1">
+                {assuntoSelecionado.breadcrumb.map((b: any, idx: number) => (
+                  <React.Fragment key={b.id || idx}>
+                    {idx > 0 && <ChevronRight className="w-3 h-3 text-slate-400 shrink-0" />}
+                    <span className={idx === assuntoSelecionado.breadcrumb.length - 1 ? 'font-semibold text-slate-800 dark:text-slate-200' : ''}>
+                      {b.titulo}
+                    </span>
+                  </React.Fragment>
+                ))}
+              </div>
+            )}
 
             {/* Trecho Oficial do Edital */}
             {assuntoSelecionado.assunto.trecho_original_edital && (
@@ -705,8 +707,9 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                 </div>
               ) : (
                 <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
-                  {assuntoSelecionado.sessoesEstudo.map((sessao: SessaoEstudo) => {
-                    const dataFormatada = sessao.data.split('-').reverse().join('/');
+                  {(assuntoSelecionado.sessoesEstudo || []).map((sessao: any) => {
+                    const dStr = sessao.data || sessao.data_sessao || '';
+                    const dataFormatada = dStr ? dStr.split('-').reverse().join('/') : '-';
                     return (
                       <div
                         key={sessao.id}
@@ -759,7 +762,7 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
               <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 uppercase tracking-wider">
                 Ciclos de Revisão Deste Assunto
               </h4>
-              {assuntoSelecionado.revisoes.length === 0 ? (
+              {(!assuntoSelecionado.revisoes || assuntoSelecionado.revisoes.length === 0) ? (
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   Nenhuma revisão agendada ainda. Quando você marcar o tópico como concluído, os ciclos automáticos de 7, 15 e 30 dias serão gerados.
                 </p>
@@ -774,10 +777,10 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                         <span className="font-bold text-slate-800 dark:text-slate-200">
                           {rev.ciclo === 'manutencao' ? `Manutenção #${rev.numero_ciclo_manutencao}` : `Revisão ${rev.ciclo}`}
                         </span>
-                        <span className="text-slate-500">• Prevista: {rev.data_prevista.split('-').reverse().join('/')}</span>
+                        <span className="text-slate-500">• Prevista: {rev.data_prevista ? rev.data_prevista.split('-').reverse().join('/') : '-'}</span>
                       </div>
                       <span className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                        rev.status === 'concluida'
+                        rev.status === 'concluida' || rev.status === 'concluido'
                           ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300'
                           : rev.status === 'atrasada'
                           ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300'
@@ -785,7 +788,7 @@ export const ArvoreEditalPage: React.FC<ArvoreEditalPageProps> = ({
                           ? 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300'
                           : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                       }`}>
-                        {rev.status.toUpperCase()}
+                        {(rev.status || 'pendente').toUpperCase()}
                       </span>
                     </div>
                   ))}

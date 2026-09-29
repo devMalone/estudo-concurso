@@ -213,9 +213,30 @@ export const browserEngine = {
     const estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
     const est = estudos.find((e) => e.assunto_id === id) || null;
 
-    const sessoesEstudo = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []).filter((s) => s.assunto_id === id);
+    const rawSessoes = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []).filter((s) => s.assunto_id === id);
+    const sessoesEstudo = rawSessoes.map((s) => ({
+      ...s,
+      data: s.data || s.data_sessao || getToday()
+    }));
+
     const questoes = getItem<any[]>(LS_KEYS.QUESTOES, []).filter((q) => q.assunto_id === id);
     const revisoes = getItem<any[]>(LS_KEYS.REVISOES, []).filter((r) => r.assunto_id === id);
+
+    // Construir breadcrumb
+    const breadcrumb: { id: string; titulo: string }[] = [{ id: assunto.id, titulo: assunto.titulo }];
+    let curParentId = assunto.parent_id;
+    while (curParentId) {
+      const p = seedData.assuntos.find((a) => a.id === curParentId);
+      if (!p) break;
+      breadcrumb.unshift({ id: p.id, titulo: p.titulo });
+      curParentId = p.parent_id;
+    }
+    if (disciplina) {
+      breadcrumb.unshift({ id: disciplina.id, titulo: disciplina.nome });
+      if (disciplina.grupo) {
+        breadcrumb.unshift({ id: 'grupo', titulo: disciplina.grupo });
+      }
+    }
 
     return {
       success: true,
@@ -228,8 +249,10 @@ export const browserEngine = {
           tempo_estudado_minutos: est?.tempo_estudado_minutos || 0,
           anotacoes: est?.anotacoes
         },
+        breadcrumb,
         estudo: est,
         sessoesEstudo,
+        sessoes: questoes,
         questoes,
         revisoes
       }
@@ -249,10 +272,12 @@ export const browserEngine = {
     const novaSessao = {
       id: sessaoId,
       assunto_id: id,
+      data: dataRef,
       data_sessao: dataRef,
       tempo_minutos: tempoMinutos,
       questoes_realizadas: questoesRealizadas,
       questoes_acertos: questoesAcertos,
+      concluiu_topico: concluirTopico ? 1 : 0,
       anotacoes,
       criado_em: new Date().toISOString()
     };
