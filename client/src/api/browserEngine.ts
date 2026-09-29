@@ -77,6 +77,55 @@ function getWeekRange(dateStr: string) {
   };
 }
 
+function reconciliarQuestoesComSessoes(questoes: any[], sessoesEstudo: any[]): any[] {
+  // Mapa de questões válidas acumuladas por assunto_id nas sessões de estudo ativas
+  const questoesPorAssunto = new Map<string, { total: number; acertos: number }>();
+  for (const s of sessoesEstudo) {
+    if (s.assunto_id && s.questoes_realizadas > 0) {
+      const prev = questoesPorAssunto.get(s.assunto_id) || { total: 0, acertos: 0 };
+      questoesPorAssunto.set(s.assunto_id, {
+        total: prev.total + Number(s.questoes_realizadas || 0),
+        acertos: prev.acertos + Number(s.questoes_acertos || 0)
+      });
+    }
+  }
+
+  // Filtrar questões do tipo 'pos_estudo':
+  // Para cada assunto_id, não permitir que ultrapasse o total existente nas sessões de estudo ativas
+  const acumuladoAssunto = new Map<string, number>();
+  const questoesFiltradas: any[] = [];
+  let mudou = false;
+
+  for (const q of questoes) {
+    if (q.tipo_sessao === 'pos_estudo' && q.assunto_id) {
+      const limite = questoesPorAssunto.get(q.assunto_id);
+      if (!limite || limite.total <= 0) {
+        // Sessão de estudo foi apagada -> descartar questões órfãs
+        mudou = true;
+        continue;
+      }
+      const jaContado = acumuladoAssunto.get(q.assunto_id) || 0;
+      const qtdDestaSessao = Number(q.total_questoes || 0);
+      if (jaContado + qtdDestaSessao > limite.total) {
+        // Excedeu as questões das sessões ativas (registro duplicado/órfão antigo) -> descartar
+        mudou = true;
+        continue;
+      }
+      acumuladoAssunto.set(q.assunto_id, jaContado + qtdDestaSessao);
+      questoesFiltradas.push(q);
+    } else {
+      // Treinos manuais avulsos, revisões ou simulados
+      questoesFiltradas.push(q);
+    }
+  }
+
+  if (mudou || questoesFiltradas.length !== questoes.length) {
+    setItem(LS_KEYS.QUESTOES, questoesFiltradas);
+    return questoesFiltradas;
+  }
+  return questoes;
+}
+
 export const browserEngine = {
   // Concurso
   getConcurso() {
@@ -348,6 +397,7 @@ export const browserEngine = {
       sessQuestoes.unshift({
         id: 'q_' + Date.now(),
         assunto_id: id,
+        sessao_estudo_id: sessaoId,
         disciplina_id: seedData.assuntos.find((a) => a.id === id)?.disciplina_id,
         data_sessao: dataRef,
         tipo_sessao: 'pos_estudo',
@@ -466,6 +516,11 @@ export const browserEngine = {
       }
     }
 
+    // Reconciliar / remover questões da sessão excluída
+    let questoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    questoes = questoes.filter((q) => q.sessao_estudo_id !== sessaoId && !(remaining.length === 0 && q.assunto_id === assuntoId && q.tipo_sessao === 'pos_estudo'));
+    setItem(LS_KEYS.QUESTOES, questoes);
+
     return { success: true };
   },
 
@@ -512,7 +567,8 @@ export const browserEngine = {
     const estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
     const sessoesEstudo = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []);
     const revisoes = getItem<any[]>(LS_KEYS.REVISOES, []);
-    const questoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    const rawQuestoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    const questoes = reconciliarQuestoesComSessoes(rawQuestoes, sessoesEstudo);
     const blocosAgenda = getItem<any[]>(LS_KEYS.AGENDA, []);
 
     // 1. Estudo na Semana
@@ -764,8 +820,38 @@ export const browserEngine = {
 
   // Questões
   getQuestoes(params?: any) {
-    const questoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    const sessoesEstudo = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []);
+    const rawQuestoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    const questoes = reconciliarQuestoesComSessoes(rawQuestoes, sessoesEstudo);
     return { success: true, data: questoes };
+  },
+
+  excluirSessaoQuestoes(id: string) {
+    let questoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    questoes = questoes.filter((q) => q.id !== id);
+    setItem(LS_KEYS.QUESTOES, questoes);
+    return { success: true };
+  },
+
+  getEstatisticasQuestoes() {
+    const sessoesEstudo = getItem<any[]>(LS_KEYS.SESSOES_ESTUDO, []);
+    const rawQuestoes = getItem<any[]>(LS_KEYS.QUESTOES, []);
+    const questoes = reconciliarQuestoesComSessoes(rawQuestoes, sessoesEstudo);
+
+    const totalQuestoes = questoes.reduce((acc, q) => acc + (q.total_questoes || 0), 0);
+    const totalAcertos = questoes.reduce((acc, q) => acc + (q.acertos || 0), 0);
+    const taxaAcertoGeral = totalQuestoes > 0 ? totalAcertos / totalQuestoes : null;
+
+    return {
+      success: true,
+      data: {
+        totalQuestoes,
+        totalAcertos,
+        totalErros: totalQuestoes - totalAcertos,
+        taxaAcertoGeral,
+        totalSessoes: questoes.length
+      }
+    };
   },
 
   criarSessaoQuestoes(data: any, hoje?: string) {
