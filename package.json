@@ -1,0 +1,19 @@
+{
+  "name": "concurso-bacen-tecnico",
+  "version": "1.0.0",
+  "description": "Aplicativo pessoal para gerenciar preparação para o concurso BACEN - Técnico Suporte Técnico-Administrativo",
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build": "npm run build:server && npm run build:client",
+    "test": "node --test tests/businessRules.test.cjs",
+    "seed": "npm --prefix server run seed",
+    "sync:supabase": "npm --prefix server run sync:supabase"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.4"
+  }
+}
