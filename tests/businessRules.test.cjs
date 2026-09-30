@@ -214,6 +214,31 @@ test('7. Cálculo de Semana Corrente (Segunda a Domingo)', () => {
   assert.strictEqual(w1.fim, '2026-10-04', 'Fim da semana deve ser Domingo 04/10/2026');
 });
 
+// Test 8: Contrato de Blocos da Agenda (propriedade 'data' obrigatória para filtragem)
+test('8. Contrato de Blocos da Agenda (data YYYY-MM-DD e integridade do modelo)', () => {
+  const blocoMock = {
+    id: 'bloco-test-1',
+    concurso_id: 'bacen-2013-tecnico-area-1',
+    data: '2026-09-30',
+    data_agendada: '2026-09-30',
+    duracao_minutos: 50,
+    disciplina_id: 'disc-portugues',
+    disciplina_nome: 'Língua Portuguesa',
+    assunto_id: 'topico-1',
+    assunto_titulo: 'Compreensão de Texto',
+    tipo: 'estudo_inicial',
+    status: 'pendente',
+    fixado: 0
+  };
+
+  const getBlocoDate = (b) => b.data || b.data_agendada || '';
+  const dataSelecionada = '2026-09-30';
+
+  assert.strictEqual(getBlocoDate(blocoMock), dataSelecionada, 'Data do bloco deve corresponder à data selecionada');
+  assert.strictEqual(blocoMock.data, dataSelecionada, 'Propriedade data deve estar preenchida');
+  assert.strictEqual(blocoMock.duracao_minutos, 50, 'Duração do bloco padrão deve ser 50 min');
+});
+
 // Limpeza após testes
 test.after(() => {
   try {

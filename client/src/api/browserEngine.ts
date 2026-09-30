@@ -651,7 +651,9 @@ export const browserEngine = {
     const taxaGeral = totalQuestoes > 0 ? totalAcertos / totalQuestoes : null;
 
     // 5. Blocos de hoje
-    const blocosHoje = blocosAgenda.filter((b) => b.data_agendada === dataRef);
+    const blocosHoje = blocosAgenda
+      .map((b) => ({ ...b, data: b.data || b.data_agendada, data_agendada: b.data || b.data_agendada }))
+      .filter((b) => (b.data || b.data_agendada) === dataRef);
     const blocosConcluidos = blocosHoje.filter((b) => b.status === 'concluido').length;
 
     // 6. Onde Concentrar
@@ -774,7 +776,12 @@ export const browserEngine = {
   // Agenda
   getAgenda(dataRef?: string) {
     const hoje = dataRef || getToday();
-    const blocos = getItem<any[]>(LS_KEYS.AGENDA, []);
+    const blocosRaw = getItem<any[]>(LS_KEYS.AGENDA, []);
+    const blocos = blocosRaw.map((b) => ({
+      ...b,
+      data: b.data || b.data_agendada || hoje,
+      data_agendada: b.data_agendada || b.data || hoje
+    }));
     return {
       success: true,
       data: blocos,
@@ -783,37 +790,242 @@ export const browserEngine = {
     };
   },
 
-  gerarAgenda(dataRef: string) {
-    const blocosExistentes = getItem<any[]>(LS_KEYS.AGENDA, []);
-    // Gerar 3 blocos recomendados para o dia
-    const discDisponiveis = seedData.disciplinas.slice(0, 3);
-    const novosBlocos = discDisponiveis.map((d, i) => {
-      const assunto = seedData.assuntos.find((a) => a.disciplina_id === d.id);
-      return {
-        id: 'bloco_' + Date.now() + '_' + i,
-        data_agendada: dataRef,
-        tipo: i === 0 ? 'estudo_inicial' : 'questoes',
-        disciplina_id: d.id,
-        disciplina_nome: d.nome,
-        assunto_id: assunto?.id,
-        assunto_titulo: assunto?.titulo,
-        duracao_minutos: 50,
-        status: 'pendente',
-        motivo_prioridade: 'Meta diária de ciclo'
-      };
+  gerarAgenda(dataRef?: string, diasParaPlanejar: number = 7) {
+    const dataInicio = dataRef || getToday();
+    const configResp = this.getConfiguracoes();
+    const config = configResp.data;
+    const duracaoBloco = config.duracaoBlocoMinutos || 50;
+
+    const blocosExistentes = getItem<any[]>(LS_KEYS.AGENDA, []).map((b) => ({
+      ...b,
+      data: b.data || b.data_agendada,
+      data_agendada: b.data || b.data_agendada
+    }));
+
+    const datasPlanejadas = new Set<string>();
+    for (let i = 0; i < diasParaPlanejar; i++) {
+      datasPlanejadas.add(addDays(dataInicio, i));
+    }
+
+    // Preserva blocos fixados ou concluídos dentro do período, e todos os blocos de fora do período
+    const blocosMantidos = blocosExistentes.filter((b) => {
+      const d = b.data || b.data_agendada;
+      if (!datasPlanejadas.has(d)) return true;
+      return b.fixado === 1 || b.status === 'concluido';
     });
 
-    const combinados = [...novosBlocos, ...blocosExistentes.filter((b) => b.data_agendada !== dataRef)];
+    // 1. Obter revisões pendentes / atrasadas
+    const revisoes = getItem<any[]>(LS_KEYS.REVISOES, []);
+    const assuntosMap = new Map(seedData.assuntos.map((a) => [a.id, a]));
+    const discMap = new Map(seedData.disciplinas.map((d) => [d.id, d]));
+
+    const revisoesPendentes = revisoes
+      .filter((r) => r.status === 'pendente' || r.status === 'atrasada' || r.status === 'disponivel')
+      .sort((a, b) => {
+        const aAtrasada = (a.data_prevista || '') < dataInicio ? 1 : 0;
+        const bAtrasada = (b.data_prevista || '') < dataInicio ? 1 : 0;
+        if (aAtrasada !== bAtrasada) return bAtrasada - aAtrasada;
+        return (a.data_prevista || '').localeCompare(b.data_prevista || '');
+      });
+
+    // 2. Obter tópicos folha não estudados
+    const estudos = getItem<any[]>(LS_KEYS.ESTUDOS, []);
+    const estudosConcluidosIds = new Set(
+      estudos.filter((e) => e.concluido).map((e) => e.assunto_id)
+    );
+
+    const assuntosJaAgendados = new Set(
+      blocosMantidos.map((b) => b.assunto_id).filter(Boolean)
+    );
+
+    const parentIds = new Set(seedData.assuntos.map((a) => a.parent_id).filter(Boolean));
+    const topicosFolhaNaoEstudados = seedData.assuntos.filter(
+      (a) => !parentIds.has(a.id) && !estudosConcluidosIds.has(a.id)
+    );
+
+    const discPesoMap = new Map(seedData.disciplinas.map((d) => [d.id, d.peso || 1.0]));
+    topicosFolhaNaoEstudados.sort((a, b) => {
+      const pesoA = discPesoMap.get(a.disciplina_id) || 1.0;
+      const pesoB = discPesoMap.get(b.disciplina_id) || 1.0;
+      if (pesoB !== pesoA) return pesoB - pesoA;
+      return (a.ordem || 0) - (b.ordem || 0);
+    });
+
+    let revisaoIdx = 0;
+    let topicoIdx = 0;
+    const novosBlocos: any[] = [];
+    const sobrecargas: any[] = [];
+
+    for (let i = 0; i < diasParaPlanejar; i++) {
+      const dataAtual = addDays(dataInicio, i);
+      const [y, m, d] = dataAtual.split('-').map(Number);
+      const dt = new Date(y, m - 1, d);
+      const diaSemana = dt.getDay(); // 0=Dom, 1=Seg...
+
+      const minutosDisponiveis = config.minutosPorDia?.[String(diaSemana)] ?? (diaSemana === 0 ? 0 : 240);
+      const diaDisponivel = (config.diasSemanaDisponiveis || [1, 2, 3, 4, 5, 6]).includes(diaSemana) && minutosDisponiveis > 0;
+
+      if (!diaDisponivel) continue;
+
+      const blocosDesteDiaMantidos = blocosMantidos.filter((b) => (b.data || b.data_agendada) === dataAtual);
+      const minutosJaAlocados = blocosDesteDiaMantidos.reduce((sum, b) => sum + (b.duracao_minutos || 0), 0);
+      let minutosRestantes = minutosDisponiveis - minutosJaAlocados;
+
+      let blockOrder = blocosDesteDiaMantidos.length + 1;
+
+      // 1. Alocar revisões prioritárias
+      while (minutosRestantes >= duracaoBloco && revisaoIdx < revisoesPendentes.length) {
+        const rev = revisoesPendentes[revisaoIdx++];
+        const asst = assuntosMap.get(rev.assunto_id);
+        const disc = asst ? discMap.get(asst.disciplina_id) : null;
+        const jaTemHoje = blocosDesteDiaMantidos.some((b) => b.revisao_id === rev.id);
+        if (jaTemHoje) continue;
+
+        const motivo = (rev.data_prevista || '') < dataAtual
+          ? `Revisão ATRASADA (${rev.ciclo || 'Ciclo'})`
+          : `Revisão agendada (${rev.ciclo || 'Ciclo'})`;
+
+        const b = {
+          id: `bloco_${Date.now()}_${i}_${blockOrder++}`,
+          concurso_id: 'bacen-2013-tecnico-area-1',
+          data: dataAtual,
+          data_agendada: dataAtual,
+          hora_inicio: null,
+          hora_fim: null,
+          duracao_minutos: duracaoBloco,
+          disciplina_id: disc?.id || '',
+          disciplina_nome: disc?.nome || 'Disciplina',
+          disciplina_grupo: disc?.grupo || 'P1',
+          assunto_id: rev.assunto_id,
+          assunto_titulo: asst?.titulo || '',
+          codigo_edital: asst?.codigo_edital || '',
+          revisao_id: rev.id,
+          revisao_ciclo: rev.ciclo,
+          tipo: 'revisao',
+          status: 'pendente',
+          fixado: 0,
+          motivo_prioridade: motivo,
+          concluido_em: null
+        };
+        novosBlocos.push(b);
+        minutosRestantes -= duracaoBloco;
+      }
+
+      // 2. Alocar novos tópicos do edital
+      while (minutosRestantes >= duracaoBloco && topicoIdx < topicosFolhaNaoEstudados.length) {
+        const topico = topicosFolhaNaoEstudados[topicoIdx++];
+        if (assuntosJaAgendados.has(topico.id)) continue;
+        assuntosJaAgendados.add(topico.id);
+
+        const disc = discMap.get(topico.disciplina_id);
+        const motivo = `Novo conteúdo do edital (Peso oficial: ${disc?.peso || 1})`;
+
+        const b = {
+          id: `bloco_${Date.now()}_${i}_${blockOrder++}`,
+          concurso_id: 'bacen-2013-tecnico-area-1',
+          data: dataAtual,
+          data_agendada: dataAtual,
+          hora_inicio: null,
+          hora_fim: null,
+          duracao_minutos: duracaoBloco,
+          disciplina_id: disc?.id || topico.disciplina_id,
+          disciplina_nome: disc?.nome || 'Disciplina',
+          disciplina_grupo: disc?.grupo || 'P1',
+          assunto_id: topico.id,
+          assunto_titulo: topico.titulo,
+          codigo_edital: topico.codigo_edital,
+          revisao_id: null,
+          tipo: 'estudo_inicial',
+          status: 'pendente',
+          fixado: 0,
+          motivo_prioridade: motivo,
+          concluido_em: null
+        };
+        novosBlocos.push(b);
+        minutosRestantes -= duracaoBloco;
+      }
+
+      // 3. Se ainda sobrou tempo, adicionar bateria de questões
+      while (minutosRestantes >= duracaoBloco) {
+        const disc = seedData.disciplinas[blockOrder % seedData.disciplinas.length];
+        const b = {
+          id: `bloco_${Date.now()}_${i}_${blockOrder++}`,
+          concurso_id: 'bacen-2013-tecnico-area-1',
+          data: dataAtual,
+          data_agendada: dataAtual,
+          hora_inicio: null,
+          hora_fim: null,
+          duracao_minutos: duracaoBloco,
+          disciplina_id: disc?.id || '',
+          disciplina_nome: disc?.nome || 'Questões',
+          disciplina_grupo: disc?.grupo || 'P1',
+          assunto_id: null,
+          assunto_titulo: 'Bateria de Exercícios da Banca',
+          codigo_edital: '',
+          revisao_id: null,
+          tipo: 'questoes',
+          status: 'pendente',
+          fixado: 0,
+          motivo_prioridade: 'Fixação e treino prático',
+          concluido_em: null
+        };
+        novosBlocos.push(b);
+        minutosRestantes -= duracaoBloco;
+      }
+    }
+
+    const combinados = [...blocosMantidos, ...novosBlocos];
     setItem(LS_KEYS.AGENDA, combinados);
-    return { success: true, totalBlocosGerados: novosBlocos.length, sobrecargas: [] };
+    return { success: true, totalBlocosGerados: novosBlocos.length, sobrecargas };
+  },
+
+  toggleFixadoBloco(blocoId: string) {
+    const blocos = getItem<any[]>(LS_KEYS.AGENDA, []);
+    const idx = blocos.findIndex((b) => b.id === blocoId);
+    if (idx >= 0) {
+      blocos[idx].fixado = blocos[idx].fixado === 1 ? 0 : 1;
+      setItem(LS_KEYS.AGENDA, blocos);
+      return { success: true, data: blocos[idx] };
+    }
+    return { success: false, error: 'Bloco não encontrado' };
   },
 
   concluirBloco(id: string, questaoData: any, dataRef?: string) {
+    const hoje = dataRef || getToday();
     const blocos = getItem<any[]>(LS_KEYS.AGENDA, []);
     const idx = blocos.findIndex((b) => b.id === id);
     if (idx >= 0) {
-      blocos[idx].status = 'concluido';
+      const bloco = blocos[idx];
+      bloco.status = 'concluido';
+      bloco.concluido_em = new Date().toISOString();
       setItem(LS_KEYS.AGENDA, blocos);
+
+      if (bloco.revisao_id) {
+        this.concluirRevisao(bloco.revisao_id, {
+          dataReal: hoje,
+          ...questaoData
+        }, hoje);
+      } else if (bloco.assunto_id && bloco.tipo === 'estudo_inicial') {
+        this.registrarSessaoEstudo(bloco.assunto_id, {
+          data: hoje,
+          tempoMinutos: bloco.duracao_minutos || 50,
+          questoesRealizadas: questaoData?.totalQuestoes || 0,
+          questoesAcertos: questaoData?.acertos || 0,
+          anotacoes: questaoData?.observacoes || '',
+          concluirTopico: true
+        }, hoje);
+      } else if (questaoData?.totalQuestoes > 0) {
+        this.criarSessaoQuestoes({
+          disciplinaId: bloco.disciplina_id,
+          assuntoId: bloco.assunto_id,
+          data: hoje,
+          totalQuestoes: questaoData.totalQuestoes,
+          acertos: questaoData.acertos,
+          tipo: 'treino',
+          origem: questaoData.origem || 'Agenda',
+          observacoes: questaoData.observacoes
+        }, hoje);
+      }
     }
     return { success: true };
   },
@@ -906,17 +1118,36 @@ export const browserEngine = {
 
   // Configurações
   getConfiguracoes() {
-    const cfg = getItem(LS_KEYS.CONFIG, {
-      horas_disponiveis_dia: 4,
-      dias_estudo_semana: 6,
-      meta_horas_semana: 25,
-      intervalo_revisao_tipo: 'padrao_24_7_15_30'
-    });
+    const defaultMinutosPorDia: Record<string, number> = {
+      '0': 0,
+      '1': 240,
+      '2': 240,
+      '3': 240,
+      '4': 240,
+      '5': 240,
+      '6': 300
+    };
+
+    const stored = getItem<any>(LS_KEYS.CONFIG, {});
+    const cfg = {
+      diasSemanaDisponiveis: stored.diasSemanaDisponiveis || [1, 2, 3, 4, 5, 6],
+      minutosPorDia: stored.minutosPorDia || defaultMinutosPorDia,
+      duracaoBlocoMinutos: stored.duracaoBlocoMinutos || stored.duracao_bloco || 50,
+      pausaMinutos: stored.pausaMinutos || 10,
+      proporcaoEstudoNovo: stored.proporcaoEstudoNovo ?? 0.5,
+      proporcaoRevisoes: stored.proporcaoRevisoes ?? 0.3,
+      proporcaoQuestoes: stored.proporcaoQuestoes ?? 0.2,
+      meta_horas_semana: stored.meta_horas_semana || 25,
+      horas_disponiveis_dia: stored.horas_disponiveis_dia || 4
+    };
+
     return { success: true, data: cfg };
   },
 
   salvarConfiguracoes(data: any) {
-    setItem(LS_KEYS.CONFIG, data);
+    const current = getItem<any>(LS_KEYS.CONFIG, {});
+    const updated = { ...current, ...data };
+    setItem(LS_KEYS.CONFIG, updated);
     return { success: true };
   }
 };

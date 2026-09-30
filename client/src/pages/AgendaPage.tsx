@@ -71,6 +71,10 @@ export const AgendaPage: React.FC<AgendaPageProps> = ({
   };
 
   useEffect(() => {
+    setDataSelecionada(simulatedDate);
+  }, [simulatedDate]);
+
+  useEffect(() => {
     loadAgenda();
   }, [dataSelecionada, simulatedDate]);
 
@@ -78,8 +82,9 @@ export const AgendaPage: React.FC<AgendaPageProps> = ({
     try {
       setGerandoAgenda(true);
       const { api } = await import('../api/client');
+      const dataInicio = inicioSemana < simulatedDate ? inicioSemana : simulatedDate;
       const res = await api.gerarAgenda({
-        dataInicio: simulatedDate,
+        dataInicio,
         diasParaPlanejar: 7
       }, simulatedDate);
 
@@ -107,7 +112,8 @@ export const AgendaPage: React.FC<AgendaPageProps> = ({
     onRefreshGlobal();
   };
 
-  const blocosDoDia = blocos.filter((b) => b.data === dataSelecionada);
+  const getBlocoDate = (b: BlocoAgenda) => b.data || (b as any).data_agendada || '';
+  const blocosDoDia = blocos.filter((b) => getBlocoDate(b) === dataSelecionada);
   const minutosTotaisHoje = blocosDoDia.reduce((acc, b) => acc + b.duracao_minutos, 0);
   const blocosConcluidosHoje = blocosDoDia.filter((b) => b.status === 'concluido').length;
 
@@ -176,7 +182,7 @@ export const AgendaPage: React.FC<AgendaPageProps> = ({
           {diasSemana.map((dStr, idx) => {
             const isToday = dStr === simulatedDate;
             const isSelected = dStr === dataSelecionada;
-            const blocosDesteDia = blocos.filter((b) => b.data === dStr);
+            const blocosDesteDia = blocos.filter((b) => getBlocoDate(b) === dStr);
             const pendentesDesteDia = blocosDesteDia.filter((b) => b.status !== 'concluido').length;
             const dayNum = dStr.split('-')[2];
 
@@ -238,9 +244,10 @@ export const AgendaPage: React.FC<AgendaPageProps> = ({
             <p>Nenhum bloco planejado para este dia.</p>
             <button
               onClick={handleGerarAgenda}
-              className="px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors"
+              disabled={gerandoAgenda}
+              className="px-4 py-2 rounded-lg bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors disabled:opacity-50"
             >
-              Gerar Agenda Automaticamente
+              {gerandoAgenda ? 'Gerando Agenda...' : 'Gerar Agenda Automaticamente'}
             </button>
           </div>
         ) : (

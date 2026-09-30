@@ -187,7 +187,7 @@ export const api = {
       if (hoje) q.set('hoje', hoje);
       return await apiFetch<{ success: boolean; data: any[]; dataInicio: string; dataFim: string }>(`/agenda?${q.toString()}`);
     } catch {
-      return browserEngine.getAgenda(hoje);
+      return browserEngine.getAgenda(hoje || dataInicio);
     }
   },
   gerarAgenda: async (data: { dataInicio?: string; diasParaPlanejar?: number }, hoje?: string) => {
@@ -197,7 +197,7 @@ export const api = {
         body: JSON.stringify(data)
       });
     } catch {
-      return browserEngine.gerarAgenda(hoje || data.dataInicio || '');
+      return browserEngine.gerarAgenda(data.dataInicio || hoje || '', data.diasParaPlanejar || 7);
     }
   },
   concluirBloco: async (id: string, questaoData?: any, hoje?: string) => {
@@ -210,8 +210,13 @@ export const api = {
       return browserEngine.concluirBloco(id, questaoData, hoje);
     }
   },
-  toggleFixadoBloco: (id: string) =>
-    apiFetch<{ success: boolean; data: any }>(`/agenda/blocos/${id}/toggle-fixado`, { method: 'POST' }),
+  toggleFixadoBloco: async (id: string) => {
+    try {
+      return await apiFetch<{ success: boolean; data: any }>(`/agenda/blocos/${id}/toggle-fixado`, { method: 'POST' });
+    } catch {
+      return browserEngine.toggleFixadoBloco(id);
+    }
+  },
   getRotinaConfig: async () => {
     try {
       return await apiFetch<{ success: boolean; data: any }>('/agenda/config');
